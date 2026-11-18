@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>监控故障诊断助手 · 块状诊断树 Demo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2' width='20' height='20' rx='4' fill='%2317365D'/%3E%3Ccircle cx='12' cy='12' r='5' fill='%23fff'/%3E%3Ccircle cx='12' cy='12' r='2.2' fill='%23E8A33D'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0F1B2D; --panel:#15263C; --panel2:#1B3050; --line:#2A4365;
+    --txt:#E8F0FA; --txt2:#9FB6CF; --txt3:#6E87A3;
+    --blue:#5B9BD5; --green:#4CAF7D; --amber:#E8A33D; --red:#E06A5A;
+    --symptom:#5B9BD5; --judge:#6FA8DC; --cause:#E8A33D; --solution:#4CAF7D;
+    --radius:10px;
+    --header-h:46px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  svg{display:block;}
+
+  /* ===== 顶部栏 ===== */
+  header{
+    height:var(--header-h); flex:0 0 auto;
+    display:flex; align-items:center; gap:10px;
+    padding:0 12px;
+    background:linear-gradient(180deg,#182B44,#14243C);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex; align-items:center; gap:8px; min-width:0;}
+  .brand .logo{width:26px;height:26px;border-radius:7px;background:var(--blue);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .brand .t{font-size:15px;font-weight:700;letter-spacing:.3px;white-space:nowrap;}
+  .brand .sub{font-size:10px;color:var(--txt3);margin-top:1px;white-space:nowrap;}
+  .crumb{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txt2);min-width:0;overflow:hidden;white-space:nowrap;}
+  .crumb b{color:var(--txt);font-weight:600;}
+  .crumb .sep{color:var(--txt3);}
+  .search{margin-left:auto;display:flex;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:0 8px;height:30px;width:min(38vw,240px);flex:0 0 auto;}
+  .search input{background:transparent;border:none;outline:none;color:var(--txt);font-size:13px;width:100%;}
+  .search input::placeholder{color:var(--txt3);}
+  .legend{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--txt2);flex:0 0 auto;}
+  .legend .dot{width:8px;height:8px;border-radius:50%;}
+  .lg{display:flex;align-items:center;gap:3px;}
+
+  /* ===== 主区域三栏 ===== */
+  main{
+    flex:1 1 auto; min-height:0;
+    display:grid; grid-template-columns:170px minmax(0,1fr) minmax(0,1.25fr);
+    gap:8px; padding:8px;
+  }
+  .col{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    display:flex; flex-direction:column; min-height:0; overflow:hidden;
+  }
+  .col-h{
+    padding:8px 12px; font-size:11px; font-weight:700; color:var(--txt2);
+    letter-spacing:1px; border-bottom:1px solid var(--line); flex:0 0 auto;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .col-h .cnt{font-size:10px;color:var(--txt3);font-weight:400;}
+
+  /* 分类栏 */
+  .cat-list{flex:1 1 auto;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:6px;}
+  .cat{
+    display:flex; align-items:center; gap:8px; width:100%;
+    background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:7px 9px; cursor:pointer; text-align:left; color:var(--txt);
+    transition:border-color .15s, background .15s;
+  }
+  .cat .no{width:22px;height:22px;border-radius:6px;background:rgba(91,155,213,.18);color:var(--blue);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .cat .nm{font-size:13px;font-weight:600;line-height:1.25;flex:1 1 auto;min-width:0;}
+  .cat .n{font-size:10px;color:var(--txt3);flex:0 0 auto;}
+  .cat.on{border-color:var(--blue);background:rgba(91,155,213,.14);}
+  .cat.on .no{background:var(--blue);color:#0F1B2D;}
+
+  /* 故障栏 */
+  .fault-list{flex:1 1 auto;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:6px;}
+  .fault{
+    display:flex; align-items:flex-start; gap:8px; width:100%;
+    background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:8px 9px; cursor:pointer; text-align:left; color:var(--txt);
+    transition:border-color .15s, background .15s;
+  }
+  .fault .pri{width:5px;height:100%;min-height:34px;border-radius:3px;flex:0 0 auto;align-self:stretch;}
+  .fault .fbody{flex:1 1 auto;min-width:0;}
+  .fault .ft{font-size:13px;font-weight:600;line-height:1.3;}
+  .fault .fd{font-size:11px;color:var(--txt2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+  .fault .ftags{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;}
+  .fault .tag{font-size:9px;color:var(--txt2);background:rgba(110,135,163,.15);border-radius:4px;padding:1px 5px;}
+  .fault.on{border-color:var(--blue);background:rgba(91,155,213,.14);}
+  .empty{font-size:12px;color:var(--txt3);padding:20px 12px;text-align:center;}
+
+  /* 详情栏 */
+  .detail{flex:1 1 auto;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:10px;}
+  .d-head{}
+  .d-title{font-size:16px;font-weight:700;line-height:1.3;}
+  .d-desc{font-size:12px;color:var(--txt2);margin-top:3px;line-height:1.5;}
+  .d-cond{font-size:11px;color:var(--amber);margin-top:4px;}
+  .d-cond b{color:var(--txt3);font-weight:500;}
+
+  .block{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;}
+  .block-h{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:7px;}
+  .block-h .bar{width:3px;height:12px;border-radius:2px;}
+  .judge-list{display:flex;flex-direction:column;gap:6px;}
+  .judge{
+    display:flex; align-items:flex-start; gap:7px;
+    background:rgba(111,168,220,.08); border:1px solid rgba(111,168,220,.25); border-radius:7px;
+    padding:6px 8px; font-size:12px; color:var(--txt); line-height:1.45;
+  }
+  .judge .ic{width:16px;height:16px;border-radius:50%;background:var(--judge);color:#0F1B2D;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto;margin-top:1px;}
+  .cause{
+    background:rgba(232,163,61,.06); border:1px solid rgba(232,163,61,.22); border-radius:7px;
+    padding:8px 9px; margin-top:6px;
+  }
+  .cause .ct{font-size:12px;font-weight:700;color:var(--amber);display:flex;align-items:center;gap:5px;}
+  .cause .ct .no{width:15px;height:15px;border-radius:4px;background:var(--cause);color:#0F1B2D;font-size:10px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .cause .cd{font-size:11.5px;color:var(--txt2);margin-top:3px;line-height:1.5;}
+  .cause .ck{font-size:11px;color:var(--txt);background:rgba(232,163,61,.1);border-radius:5px;padding:5px 7px;margin-top:5px;line-height:1.45;}
+  .cause .ck .lab{color:var(--txt3);}
+  .cause .sol{font-size:11.5px;color:var(--solution);background:rgba(76,175,125,.08);border:1px solid rgba(76,175,125,.2);border-radius:5px;padding:5px 7px;margin-top:5px;line-height:1.45;}
+  .cause .sol .lab{color:var(--txt3);}
+  .d-prev{font-size:11px;color:var(--txt2);background:rgba(110,135,163,.1);border-radius:6px;padding:7px 9px;line-height:1.5;}
+  .d-prev b{color:var(--txt);}
+  .d-src{font-size:10px;color:var(--txt3);}
+
+  /* 提示页 */
+  .hint{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;height:100%;color:var(--txt3);font-size:12px;text-align:center;padding:20px;}
+  .hint .big{width:44px;height:44px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;}
+
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-thumb{background:rgba(110,135,163,.35);border-radius:3px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  /* ===== 手机横板模拟外框 ===== */
+  .phone-shell{width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;}
+  @media (min-width:600px) and (orientation:landscape) and (min-height:400px){
+    body{align-items:center;justify-content:center;background:#0A1424;padding:22px;}
+    .phone-shell{
+      width:min(94vw, 940px);
+      height:min(calc(100vh - 44px), 440px);
+      border-radius:22px;
+      border:1px solid rgba(91,155,213,.25);
+      box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 6px rgba(91,155,213,.06);
+      overflow:hidden;
+    }
+  }
+  /* 横板下放大字号与格子，便于手机阅读 */
+  @media (orientation:landscape) and (max-height:600px){
+    .brand .t{font-size:17px;}
+    .brand .sub{font-size:12px;}
+    .crumb{font-size:13px;}
+    .search{height:32px;}
+    .search input{font-size:16px;}
+    .legend{font-size:12px;}
+    .col-h{font-size:12px;}
+    .cat{padding:9px 10px;}
+    .cat .nm{font-size:15px;}
+    .cat .n{font-size:12px;}
+    .cat .no{width:26px;height:26px;font-size:13px;}
+    .fault{padding:9px 10px;}
+    .fault .ft{font-size:15px;}
+    .fault .fd{font-size:13px;}
+    .fault .tag{font-size:11px;}
+    .d-title{font-size:18px;}
+    .d-desc{font-size:14px;}
+    .d-cond{font-size:13px;}
+    .block-h{font-size:12px;}
+    .judge{font-size:14px;}
+    .cause .ct{font-size:14px;}
+    .cause .cd{font-size:13px;}
+    .cause .ck{font-size:13px;}
+    .cause .sol{font-size:13px;}
+    .d-prev{font-size:13px;}
+    .d-src{font-size:11px;}
+  }
+
+  /* ===== 竖屏降级：三栏堆叠可滚动 ===== */
+  @media (orientation: portrait) and (max-width: 720px){
+    body{overflow:auto;}
+    .phone-shell{height:auto;min-height:100%;overflow:visible;}
+    main{grid-template-columns:1fr;grid-template-rows:auto auto 1fr;height:auto;min-height:calc(100vh - var(--header-h));}
+    .col{max-height:240px;}
+    .col.detail-col{max-height:none;min-height:60vh;}
+    .search{width:40vw;}
+    .legend{display:none;}
+  }
+</style>
+</head>
+<body>
+<div class="phone-shell">
+
+<header>
+  <div class="brand">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#0F1B2D" stroke-width="2.4" stroke-linecap="round">
+        <circle cx="12" cy="12" r="4.2"/>
+        <path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22M4.9 4.9l2.5 2.5M16.6 16.6l2.5 2.5M19.1 4.9l-2.5 2.5M7.4 16.6l-2.5 2.5"/>
+      </svg>
+    </div>
+    <div>
+      <div class="t">监控故障诊断</div>
+      <div class="sub">块状诊断树 Demo</div>
+    </div>
+  </div>
+  <div class="crumb"><b id="crumb">分类 → 故障</b></div>
+  <div class="search">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#6E87A3" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="searchInput" type="search" placeholder="搜故障，如黑屏 / 卡顿" autocomplete="off">
+  </div>
+  <div class="legend">
+    <span class="lg"><span class="dot" style="background:var(--red)"></span>高</span>
+    <span class="lg"><span class="dot" style="background:var(--amber)"></span>中</span>
+    <span class="lg"><span class="dot" style="background:var(--txt3)"></span>低</span>
+  </div>
+</header>
+
+<main>
+  <!-- 第一栏：分类 -->
+  <section class="col" id="colCat">
+    <div class="col-h">故障分类 <span class="cnt" id="catCnt"></span></div>
+    <div class="cat-list" id="catList"></div>
+  </section>
+
+  <!-- 第二栏：故障现象 -->
+  <section class="col" id="colFault">
+    <div class="col-h"><span id="faultColTitle">故障现象</span> <span class="cnt" id="faultCnt"></span></div>
+    <div class="fault-list" id="faultList"></div>
+  </section>
+
+  <!-- 第三栏：诊断详情 -->
+  <section class="col detail-col" id="colDetail">
+    <div class="col-h">诊断与处理</div>
+    <div class="detail" id="detailBox"></div>
+  </section>
+</main>
+</div>
+
+<script>
+"use strict";
+/* ===== 知识库数据（来自《监控系统故障诊断知识库.json》v1.0.0） ===== */
+const FAULT_DATA = {"meta":{"name":"监控系统故障智能诊断知识库","version":"1.0.0","updated":"2026-10-10","schema":"与《开发说明》第3节数据模型对齐：type=symptom|judge|cause|solution；condition为触发条件","source":"行业公开资料汇总整理（厂商官方排障文档、安防技术社区、施工经验），持续可维护","usage":"程序按 category→fault→judges→causes→solutions 逐层下钻渲染块状诊断图"},"general_framework":[{"title":"总体排查顺序","content":"供电 → 链路 → 存储 → 解码 → 安装环境（不要盲目换设备，先做隔离定位）"},{"title":"排查口诀（图像）","content":"先看指示灯，再查网线通；IP 要同段，Ping 通加对号"},{"title":"排查口诀（卡顿）","content":"先单路后全路，查线换千兆码流降"},{"title":"排查原则","content":"先物理（供电/接线/遮挡）后参数（协议/码率/IP），最后硬件；区分单台/成组/全系统故障范围"},{"title":"工具清单","content":"万用表、网线测线仪、PoE测试仪、便携监视器、笔记本（Ping）、厂商IP搜索工具（SADP等）、手机相机（验红外灯）"},{"title":"数据恢复铁律","content":"发现录像丢失立即断电保护，勿格式化、勿继续写入，再评估逻辑故障或物理故障"}],"categories":[{"id":"cat_image","name":"图像异常类","desc":"画面黑屏、模糊、花屏、偏色、干扰等显示类故障，约占监控故障的80%，按“先物理后参数”排查","order":1,"faults":[{"id":"f_img_black","type":"symptom","title":"摄像机无图像/黑屏","desc":"监控画面无视频信号或全黑","condition":"单个或多个通道无画面","priority":"高","tags":["黑屏","无图像","无画面","无视频"],"applies_to":"IPC/半球/球机/NVR","judges":[{"type":"judge","title":"先看摄像机电源/PoE指示灯是否正常点亮","desc":"先看摄像机电源/PoE指示灯是否正常点亮"},{"type":"judge","title":"检查NVR上该通道是否在线、能否Ping通摄像机IP","desc":"检查NVR上该通道是否在线、能否Ping通摄像机IP"},{"type":"judge","title":"区分单路故障还是整机/多路故障","desc":"区分单路故障还是整机/多路故障"}],"causes":[{"type":"cause","title":"供电故障","desc":"PoE端口不供电、DC适配器损坏、集中供电线路压降过大（DC供电建议≤80米）","checks":["检查PoE端口指示灯","万用表测适配器输出电压","检查集中供电压降"],"solution":"更换适配器、检查PoE预算、解决压降或就近供电"},{"type":"cause","title":"网线/水晶头故障","desc":"断芯、线序错误（未按568B）、水晶头氧化松动、网线超100米","checks":["测线仪测网线通断与线序","换一根短网线交叉测试"],"solution":"重做水晶头（568B线序）、更换网线"},{"type":"cause","title":"IP冲突/网段不一致","desc":"摄像机IP与NVR不在同网段，或IP与其他设备冲突","checks":["Ping摄像机IP","核对IP/子网掩码/网关"],"solution":"修改IP为唯一地址且与NVR同网段"},{"type":"cause","title":"NVR添加配置错误","desc":"添加时协议/端口/密码填写错误，或跨品牌未启用ONVIF","checks":["检查NVR添加时的协议与端口","跨品牌确认ONVIF已开启"],"solution":"按正确协议/端口/密码重新添加，开启ONVIF"},{"type":"cause","title":"摄像机硬件故障","desc":"主板、镜头、传感器等硬件损坏","checks":["用替换法：拿同型号好机替换测试"],"solution":"更换摄像机硬件"}],"prevention":"供电按预算留30%冗余、网线用无氧铜超五类以上、固定IP并登记、接头做好防水","source_note":"海康/华为/TP-LINK官方排障、抖音弱电干货、万联培训资料","order":1},{"id":"f_img_blur","type":"symptom","title":"画面模糊/不清晰","desc":"图像发虚、细节不清，白天夜晚均可能","condition":"画面整体或局部模糊","priority":"中","tags":["模糊","虚焦","不清晰","雾"],"applies_to":"IPC/半球/球机","judges":[{"type":"judge","title":"先清洁镜头排除脏污","desc":"先清洁镜头排除脏污"},{"type":"judge","title":"区分整机模糊（焦距）还是局部模糊（镜头/遮挡）","desc":"区分整机模糊（焦距）还是局部模糊（镜头/遮挡）"}],"causes":[{"type":"cause","title":"镜头脏污/起雾","desc":"灰尘、水渍、昆虫、冷凝水附着镜头","checks":["目视检查镜头表面"],"solution":"用镜头布/无水酒精清洁；防水防潮处理"},{"type":"cause","title":"焦距不当","desc":"枪机手动调焦未到位、半球/球机变焦对焦未调整","checks":["远程或手动微调焦距看实时画面"],"solution":"旋转调焦环或远程控制变焦对焦至清晰"},{"type":"cause","title":"分辨率/码流设置低","desc":"摄像机分辨率设置过低或码流被限制","checks":["检查摄像机编码设置"],"solution":"将分辨率与码流调整到设备支持上限"},{"type":"cause","title":"重载云台虚焦","desc":"ABF值错误、镜头变倍电机超寿命、漏装CS圈","checks":["联系厂商技术支持检测"],"solution":"送修或更换机芯"}],"prevention":"定期清洁镜头、安装位置避开阳光直射与水汽、选用合适焦距镜头","source_note":"海康/大华官方资料、fcxconn维修指南、ihrsecurity","order":2},{"id":"f_img_mosaic","type":"symptom","title":"花屏/马赛克/色块","desc":"画面出现大块色块、马赛克、无法正常显示","condition":"部分或全部通道花屏","priority":"高","tags":["花屏","马赛克","色块","花屏卡顿"],"applies_to":"IPC/NVR/交换机","judges":[{"type":"judge","title":"用NVR一键诊断看延迟/丢包率（正常有线1-2ms）","desc":"用NVR一键诊断看延迟/丢包率（正常有线1-2ms）"},{"type":"judge","title":"区分全部通道/部分通道/单通道花屏","desc":"区分全部通道/部分通道/单通道花屏"}],"causes":[{"type":"cause","title":"线路丢包（网络传输问题）","desc":"超距模式端口变10Mbps引发丢包、水晶头老化、网线被破坏","checks":["NVR一键诊断延迟丢包","电脑Ping摄像机验证"],"solution":"关闭超距开关、更换NVR到交换机主线、重做水晶头"},{"type":"cause","title":"交换机瓶颈","desc":"接入路数多时百兆口上联带宽不足（>20路需千兆上联）","checks":["检查NVR与交换机连接端口速率"],"solution":"NVR连接千兆端口、升级全千兆交换机"},{"type":"cause","title":"编码/带宽不匹配","desc":"分辨率帧率过高而允许码流过低，或网络带宽不足","checks":["检查码流设置与带宽占用"],"solution":"降低分辨率/帧率或提高码流上限，H.265省一半带宽"}],"prevention":"高清监控严禁百兆交换机、网线8芯全通、级联方式正确","source_note":"TP-LINK排障文章、抖音弱电干货、昊峰威视知识库","order":3},{"id":"f_img_color","type":"symptom","title":"画面偏色（偏红/偏紫/黑白）","desc":"白天图像偏红偏紫、或整机黑白无彩色","condition":"彩色画面异常","priority":"中","tags":["偏色","偏红","偏紫","黑白","无彩色"],"applies_to":"IPC/模拟摄像机","judges":[{"type":"judge","title":"判断是白天偏色还是夜间偏色","desc":"判断是白天偏色还是夜间偏色"},{"type":"judge","title":"带红外IPC白天轻微偏色属正常物理现象","desc":"带红外IPC白天轻微偏色属正常物理现象"}],"causes":[{"type":"cause","title":"IRCUT滤光片卡住","desc":"日夜切换滤光片机械卡死，导致白天画面偏红偏紫","checks":["白天遮住镜头听有无咔哒切换声","多次重启与日夜切换测试"],"solution":"重启摄像机3-5次、多次彩色/黑白切换复位；卡死则更换滤光片模块"},{"type":"cause","title":"白平衡/快门参数异常","desc":"自动白平衡被手动值覆盖、快门参数设置过大","checks":["检查图像设置中的白平衡与曝光参数"],"solution":"恢复自动白平衡、快门恢复默认（3-10）"},{"type":"cause","title":"制式/线缆不匹配（模拟机）","desc":"PAL/NTSC制式不一致、同轴缆质量差/距离远、接头氧化","checks":["检查制式设置","更换视频线/接头测试"],"solution":"统一PAL制式、更换优质同轴缆（RG59纯铜）并重做接头"},{"type":"cause","title":"电压不足","desc":"线路过长电压衰减导致图像偏色、色淡","checks":["测量摄像机端电压"],"solution":"提高供电电压或缩短线距、使用稳压电源"}],"prevention":"使用配套制式与线缆、供电线路按载流量设计、定期检查接头防水","source_note":"大华常见问题汇总、海康越南站、昊峰威视偏色原理、IHR","order":4},{"id":"f_img_interference","type":"symptom","title":"图像干扰（横纹/木纹/竖条/雪花）","desc":"画面出现滚动黑杠白杠、木纹网纹、竖条、雪花噪点","condition":"图像上有规律或无规律干扰","priority":"中","tags":["干扰","横纹","木纹","地环路","雪花","竖条"],"applies_to":"模拟摄像机/同轴传输系统","judges":[{"type":"judge","title":"区分干扰形态：黑白杠滚动=地环路50Hz；竖条=阻抗不匹配；木纹=屏蔽差/电源脏；雪花=距离衰减","desc":"区分干扰形态：黑白杠滚动=地环路50Hz；竖条=阻抗不匹配；木纹=屏蔽差/电源脏；雪花=距离衰减"},{"type":"judge","title":"便携监视器分段测试定位前端/中端/后端干扰源","desc":"便携监视器分段测试定位前端/中端/后端干扰源"}],"causes":[{"type":"cause","title":"地环路（50Hz工频干扰）","desc":"信号线公共端两头重复接地、与220V零线短路，产生滚动黑杠白杠","checks":["分段接入便携监视器定位","检查接地情况"],"solution":"接入隔离变压器/纵向扼流圈、统一接地、加光电隔离器"},{"type":"cause","title":"线缆屏蔽差/质量差","desc":"屏蔽网稀疏、芯线与屏蔽网短路断路、特性阻抗非75Ω","checks":["检查线缆与BNC接头质量"],"solution":"更换国标纯铜同轴电缆、重做/更换BNC头"},{"type":"cause","title":"电源不洁净/强干扰源","desc":"电网含可控硅设备污染、视频线与强电线并行过近（<30cm）","checks":["检查供电质量","检查布线间距"],"solution":"净化电源/UPS供电、视频线与强电保持30cm以上并做接地屏蔽"},{"type":"cause","title":"传输距离过远衰减","desc":"同轴传输距离太长导致信号衰减、雪花噪点","checks":["确认传输距离"],"solution":"增加放大型视频抗干扰器或改光纤传输"}],"prevention":"强弱电分离30cm以上、用屏蔽双绞线/同轴缆并接地、接头做好防水","source_note":"工控网、上海音乐学院维护制度、安防协会技术文章、worow、puretech","order":5}]},{"id":"cat_storage","name":"记录/存储类","desc":"不录像、录像丢失、硬盘异常等存储链故障，按“存储→计划→在线→硬盘→通道”五步排查","order":2,"faults":[{"id":"f_sto_norecord","type":"symptom","title":"NVR不录像","desc":"通道在线但无录像文件生成","condition":"画面正常但无录像","priority":"高","tags":["不录像","无录像","未录像"],"applies_to":"NVR/DVR/硬盘","judges":[{"type":"judge","title":"先看硬盘是否被识别与格式化","desc":"先看硬盘是否被识别与格式化"},{"type":"judge","title":"确认录像模式（定时/移动侦测）与录像计划是否开启","desc":"确认录像模式（定时/移动侦测）与录像计划是否开启"}],"causes":[{"type":"cause","title":"硬盘未格式化/不存在","desc":"新硬盘未初始化，或硬盘供电不足/SATA线松动识别不到","checks":["NVR存储管理查看硬盘状态"],"solution":"格式化硬盘（建议监控级硬盘）、重插SATA线/检查电源"},{"type":"cause","title":"编码格式不兼容","desc":"新摄像机默认H.265，老NVR不支持导致无法录像","checks":["检查摄像机编码格式"],"solution":"将编码改为H.264并适当降低码率"},{"type":"cause","title":"录像计划/时间错误","desc":"录像计划未开启、系统时间不正确导致录像混乱","checks":["检查录像计划","检查系统时间"],"solution":"开启定时/移动侦测录像、NTP校时、修正系统时间"},{"type":"cause","title":"循环写入未开启","desc":"硬盘满后停止录像而非循环覆盖","checks":["检查存储设置中的循环/覆盖选项"],"solution":"开启循环存储（硬盘满自动覆盖）"},{"type":"cause","title":"硬盘坏道","desc":"硬盘存在坏道导致写入失败","checks":["查看SMART健康状态"],"solution":"更换监控级硬盘（Seagate SkyHawk/WD Purple）"}],"prevention":"选用监控级硬盘、开启循环覆盖、NTP自动校时、定期检查硬盘健康","source_note":"TP-LINK、Milesight、CCTV Trainer、securitywow、Coram","order":1},{"id":"f_sto_lost","type":"symptom","title":"录像丢失/缺失","desc":"历史录像找不到、时间段缺失或被覆盖","condition":"录像文件缺失或无法回放","priority":"高","tags":["录像丢失","录像缺失","回放不了"],"applies_to":"NVR/DVR/硬盘/SD卡","judges":[{"type":"judge","title":"发现丢失立即断电保护现场，勿格式化勿写入","desc":"发现丢失立即断电保护现场，勿格式化勿写入"},{"type":"judge","title":"确认是逻辑故障（时间/过滤器）还是物理故障（硬盘）","desc":"确认是逻辑故障（时间/过滤器）还是物理故障（硬盘）"}],"causes":[{"type":"cause","title":"硬盘物理故障","desc":"坏道、磁头损坏导致录像写入失败或数据丢失","checks":["SMART指标：重分配扇区/待处理扇区/读错误率"],"solution":"立即停止写入，专业数据恢复，更换硬盘"},{"type":"cause","title":"循环覆盖被关闭/时间错乱","desc":"硬盘满停止、或系统时间错乱导致覆盖顺序异常","checks":["检查覆盖设置与系统时间"],"solution":"开启循环覆盖、NTP校时"},{"type":"cause","title":"检索条件错误","desc":"搜索时间不对、事件过滤器（如只查移动侦测录像）遗漏","checks":["放宽时间范围","检查事件类型过滤"],"solution":"调整搜索时间段与事件类型重新检索"},{"type":"cause","title":"误删/格式化","desc":"人为误操作删除或格式化","checks":["确认操作记录"],"solution":"停止使用并交数据恢复机构处理"}],"prevention":"重要录像异地/云端备份、定期检查硬盘健康、开启循环覆盖","source_note":"Lifeguard、sosit数据恢复、securitywow、CCTV Trainer","order":2},{"id":"f_sto_disk","type":"symptom","title":"硬盘识别不到/报错","desc":"NVR提示硬盘不存在、异常或识别不到","condition":"硬盘未识别或状态异常","priority":"高","tags":["硬盘识别不到","硬盘异常","无硬盘"],"applies_to":"NVR/硬盘/SATA","judges":[{"type":"judge","title":"区分“识别不到”与“识别到但不录像”两种状态","desc":"区分“识别不到”与“识别到但不录像”两种状态"}],"causes":[{"type":"cause","title":"SATA线松动/接触不良","desc":"数据线或电源线松动、氧化","checks":["重插硬盘数据线与电源线"],"solution":"重新插拔并固定、必要时更换SATA线"},{"type":"cause","title":"电源功率不足","desc":"NVR电源无法带动多硬盘","checks":["检查NVR电源适配器功率"],"solution":"更换更大功率电源适配器"},{"type":"cause","title":"硬盘损坏/未初始化","desc":"硬盘有坏道或从未初始化","checks":["换电脑/换硬盘位测试","NVR中查看状态"],"solution":"初始化硬盘；确认坏道则更换监控级硬盘"},{"type":"cause","title":"非监控级硬盘","desc":"使用普通台式机硬盘，7×24小时运行易损坏","checks":["查看硬盘型号"],"solution":"更换监控级硬盘（SkyHawk/紫盘）"}],"prevention":"使用监控级硬盘、电源功率留冗余、定期查看硬盘健康状态","source_note":"抖音弱电、TP-LINK、securitywow、CCTV Trainer","order":3}]},{"id":"cat_power","name":"供电/POE类","desc":"摄像机不上电、PoE供电不足、多路同时掉线等供电链故障，按“先供电后链路再设备”隔离排查","order":3,"faults":[{"id":"f_pow_nopower","type":"symptom","title":"摄像机不上电/无电源指示","desc":"摄像机指示灯不亮、不启动","condition":"单台或多台摄像机无供电","priority":"高","tags":["不上电","不亮","无电源","不工作"],"applies_to":"IPC/PoE交换机/电源适配器","judges":[{"type":"judge","title":"按故障范围分类：单机/一组/全系统","desc":"按故障范围分类：单机/一组/全系统"},{"type":"judge","title":"从电源源头向设备端逐点排查（端口→线缆→设备）","desc":"从电源源头向设备端逐点排查（端口→线缆→设备）"}],"causes":[{"type":"cause","title":"PoE端口不供电","desc":"端口PoE功能关闭、端口故障、非标设备不识别","checks":["看端口指示灯","换到已知正常端口测试"],"solution":"在交换机管理界面启用PoE、换端口、更换故障端口"},{"type":"cause","title":"总功率/单口功率超限","desc":"所接设备总功率超过交换机PoE预算，或单口功率不足","checks":["核算总功率（按最大功率70%留冗余）","查看交换机供电状态（dis poe power）"],"solution":"减少该交换机负载、更换更高功率交换机（802.3at/bt）"},{"type":"cause","title":"电源适配器故障","desc":"适配器损坏、规格不匹配、非原厂","checks":["看适配器指示灯","万用表测输出电压"],"solution":"更换原厂同规格适配器"},{"type":"cause","title":"网线供电线对不通","desc":"水晶头线序错误（4/5、7/8供电线对不通）、线缆断芯","checks":["测线仪逐芯检测"],"solution":"按T568B重做水晶头、更换网线"},{"type":"cause","title":"标准/被动PoE不匹配","desc":"被动PoE交换机直接供电，可能烧毁不支持PoE的设备","checks":["确认PoE标准（af/at/bt）与模式（Alt A/B）"],"solution":"使用与设备匹配的标准PoE，禁用被动PoE直供"}],"prevention":"PoE功率按70%冗余设计、使用标准PoE设备、网线8芯全通且≤100米","source_note":"华为/腾达PoE排障、太平洋科技、cabletestshop、Zosi、securitywow","order":1},{"id":"f_pow_groupdrop","type":"symptom","title":"多台摄像机同时掉线","desc":"同一交换机下多个摄像头同一时间离线/重启","condition":"成组、成片掉线","priority":"高","tags":["同时掉线","成片掉线","频繁掉线"],"applies_to":"PoE交换机/电源模块/传输设备","judges":[{"type":"judge","title":"同一时间掉线→优先查共同依赖（交换机/传输）而非单台设备","desc":"同一时间掉线→优先查共同依赖（交换机/传输）而非单台设备"},{"type":"judge","title":"看数据灯状态区分有无数据交换","desc":"看数据灯状态区分有无数据交换"}],"causes":[{"type":"cause","title":"交换机电源模块老化","desc":"PoE交换机电源老化供电不足，带不动多台摄像机","checks":["看交换机电源灯/数据灯","临时更换交换机验证"],"solution":"更换交换机或电源模块"},{"type":"cause","title":"交换机死机/传输设备故障","desc":"交换机死机、光纤收发器故障","checks":["重启交换机观察"],"solution":"重启交换机、更换光纤收发器"},{"type":"cause","title":"广播风暴/环路","desc":"设备过多产生广播风暴，或网线短接成环","checks":["检查接线是否有环","拨片切VLAN隔离"],"solution":"开启VLAN隔离/STP防环、拔除短接线"},{"type":"cause","title":"夜间负载激增","desc":"红外开启后功耗增大导致供电不足掉线","checks":["对比白天/夜间掉线规律"],"solution":"增加供电余量、更换更大功率电源"}],"prevention":"交换机电源质量把关、功率留30%冗余、布线避免成环、定期检查电源模块","source_note":"抖音维修案例、腾达排障手册、starlightcabling","order":2},{"id":"f_pow_vdrop","type":"symptom","title":"远距离电压衰减","desc":"长距离传输后摄像机端电压不足，画面异常或时好时坏","condition":"线路超长或线径细","priority":"中","tags":["压降","电压衰减","距离远"],"applies_to":"集中供电/DC电源/网线","judges":[{"type":"judge","title":"测量摄像机端实际电压是否满足要求","desc":"测量摄像机端实际电压是否满足要求"},{"type":"judge","title":"DC供电建议≤80米，PoE网线≤100米（超90米压降明显）","desc":"DC供电建议≤80米，PoE网线≤100米（超90米压降明显）"}],"causes":[{"type":"cause","title":"网线/电源线过长","desc":"超85-90米后铜芯电阻升高，压降可达7V以上","checks":["万用表测远端电压"],"solution":"缩短线距、就近供电、使用延长模式（≤250米）"},{"type":"cause","title":"线材质量差","desc":"铜包铝劣质线材，50米即开始衰减","checks":["检查线材材质"],"solution":"更换无氧铜超五类以上线缆"},{"type":"cause","title":"线径不足/集中供电负载大","desc":"电源线径细、一路电源带多台摄像机","checks":["核算电流与线径"],"solution":"加大线径、分散供电、24V集中供电降低损耗"}],"prevention":"按距离选线径、关键点位就近供电、用稳压电源","source_note":"太平洋科技、worow、腾达、securitywow","order":3}]},{"id":"cat_network","name":"网络/卡顿类","desc":"画面卡顿、掉帧、远程卡顿、设备离线等网络链故障，排查口诀“先单路后全路，查线换千兆码流降”","order":4,"faults":[{"id":"f_net_lag","type":"symptom","title":"画面卡顿/掉帧/延迟","desc":"画面一卡一顿、脱影残影、转动延迟高","condition":"本地或远程预览卡顿","priority":"高","tags":["卡顿","掉帧","延迟","残影"],"applies_to":"IPC/NVR/交换机/网线","judges":[{"type":"judge","title":"先判断单路卡还是全路卡（先单路后全路）","desc":"先判断单路卡还是全路卡（先单路后全路）"},{"type":"judge","title":"本地卡查交换机/网线/NVR，远程卡查上行带宽/子码流","desc":"本地卡查交换机/网线/NVR，远程卡查上行带宽/子码流"}],"causes":[{"type":"cause","title":"交换机带宽瓶颈","desc":"百兆交换机接多路高清（2K/4K）带宽跑满","checks":["看交换机端口速率","核算总码流 vs 上联带宽"],"solution":"高清监控上全千兆/2.5G交换机，NVR接千兆口"},{"type":"cause","title":"上联带宽超70%","desc":"上联口流量超过70%时容易卡顿","checks":["查交换机上联口流量"],"solution":"升级上联带宽或链路聚合"},{"type":"cause","title":"网线质量差/超距","desc":"铜包铝劣线、线序错、距离超80米导致丢包","checks":["测线仪测线","NVR一键诊断看丢包"],"solution":"换无氧铜超五类以上、重做568B水晶头"},{"type":"cause","title":"摄像机码流/帧率设置不当","desc":"码流过高（4M）、帧率过低（10-15帧）","checks":["检查摄像机编码参数"],"solution":"启用H.265省一半码流、帧率设25-30（弱网可降15-20）"},{"type":"cause","title":"NVR解码性能不足","desc":"接入路数超过NVR解码上限","checks":["减少同时预览路数对比"],"solution":"降低预览路数、开启子码流预览、升级NVR"},{"type":"cause","title":"设备过热降频","desc":"夏季高温导致设备过热自动降频保护","checks":["触摸设备温度"],"solution":"改善通风散热、避免暴晒"}],"prevention":"高清监控配千兆交换机、无氧铜网线、帧率25-30、H.265编码、机柜通风","source_note":"抖音弱电干货、TP-LINK排障、CYVIO、surveillanceguides","order":1},{"id":"f_net_remote","type":"symptom","title":"远程预览卡顿/转圈","desc":"手机APP远程看监控缓冲转圈、卡顿、马赛克","condition":"本地正常但远程卡","priority":"中","tags":["远程卡顿","转圈","缓冲","APP卡"],"applies_to":"宽带上行/路由器/子码流","judges":[{"type":"judge","title":"区分本地正常远程卡=上行带宽或无线问题","desc":"区分本地正常远程卡=上行带宽或无线问题"},{"type":"judge","title":"测上行带宽（下行100M≠上行够用，上行可能只有4M）","desc":"测上行带宽（下行100M≠上行够用，上行可能只有4M）"}],"causes":[{"type":"cause","title":"上行带宽不足","desc":"远程预览走上行带宽；子码流720P约0.5M，主码流200万约4M","checks":["带宽测试工具测上行"],"solution":"升级宽带、远程预览切换子码流、开启H.265/智能编码"},{"type":"cause","title":"多路/多人同时预览叠加","desc":"同时看多路或多人同时预览占用带宽叠加","checks":["查看在线预览人数"],"solution":"减少同时预览路数、限制并发、设置访问密码"},{"type":"cause","title":"无线传输干扰","desc":"2.4GHz穿墙弱、微波炉/其他路由器干扰","checks":["手机靠近摄像机测WiFi强度"],"solution":"无线设备靠近路由器、固定信道、关键点位改有线"},{"type":"cause","title":"WiFi信号弱","desc":"无线摄像机离路由器远（建议室内5-8米）","checks":["测信号强度"],"solution":"加装AP/中继、调整天线、缩短距离"}],"prevention":"远程预览统一用子码流、路由器开启QoS优先监控流量、无线设备控制距离","source_note":"TP-LINK、声网弱网方案、whizz-experts、surveillanceguides","order":2},{"id":"f_net_offline","type":"symptom","title":"摄像机/录像机离线","desc":"设备显示不在线、连接断开","condition":"单台或多台设备离线","priority":"高","tags":["离线","掉线","不在线"],"applies_to":"IPC/NVR/路由器/交换机","judges":[{"type":"judge","title":"先看本地（电视/显示器）能否出图，区分设备问题还是网络问题","desc":"先看本地（电视/显示器）能否出图，区分设备问题还是网络问题"},{"type":"judge","title":"NVR一键诊断/网络检测定位断点","desc":"NVR一键诊断/网络检测定位断点"}],"causes":[{"type":"cause","title":"网段变化","desc":"路由器复位/更换导致网段改变，静态IP失效（占离线原因62%）","checks":["核对IP参数是否与当前路由器同网段"],"solution":"改为动态IP或重设正确网段，重新添加摄像机"},{"type":"cause","title":"IP冲突","desc":"摄像机IP与局域网其他设备冲突","checks":["Ping测试，确认IP唯一"],"solution":"分配唯一静态IP或开启DHCP"},{"type":"cause","title":"路由器限制/认证","desc":"黑名单、白名单未认证、WEB认证/微信认证阻断","checks":["查路由器被禁设备列表"],"solution":"解禁设备、完成认证、关闭联网认证或设免认证"},{"type":"cause","title":"链路/供电中断","desc":"水晶头松动、网线断、供电不足","checks":["查网口指示灯","查设备供电"],"solution":"重插水晶头、更换网线、解决供电"},{"type":"cause","title":"AP隔离/端口限制","desc":"路由器开启AP隔离或UPnP关闭阻断心跳","checks":["检查路由器AP隔离/UPnP设置"],"solution":"关闭AP隔离、开启UPnP"}],"prevention":"设备用DHCP或登记静态IP、路由器白名单预登记、定期检查链路","source_note":"TP-LINK、海康萤石云排查、jb51、seetong维修案例","order":3},{"id":"f_net_search","type":"symptom","title":"搜索不到摄像机IP","desc":"IP搜索工具/管理软件搜不到设备","condition":"无法发现摄像机","priority":"中","tags":["搜不到","找不到IP","设备发现"],"applies_to":"IPC/交换机/搜索工具","judges":[{"type":"judge","title":"Ping摄像机IP判断物理链路","desc":"Ping摄像机IP判断物理链路"},{"type":"judge","title":"确认是否禁止了ICMP包","desc":"确认是否禁止了ICMP包"}],"causes":[{"type":"cause","title":"网络链路问题","desc":"网线/交换机连接异常","checks":["Ping测试","查网线通断"],"solution":"修复链路、更换网线"},{"type":"cause","title":"IP被更改忘记","desc":"曾修改过IP地址不记得","checks":["尝试reset复位"],"solution":"长按reset 3秒恢复出厂后重新搜索"},{"type":"cause","title":"跨网段","desc":"设备与电脑不在同一网段","checks":["核对网段"],"solution":"将电脑与设备设为同网段后用厂商工具搜索"}],"prevention":"登记设备IP台账、使用厂商IP搜索工具","source_note":"昊峰威视、海康SADP、华为JDC","order":4}]},{"id":"cat_night","name":"夜视/红外类","desc":"夜间全黑、发白、噪点多等红外夜视故障，多与IR LED、滤光片、供电余量相关","order":5,"faults":[{"id":"f_nt_none","type":"symptom","title":"夜间全黑/夜视失效","desc":"白天正常，夜间画面全黑或几乎看不到","condition":"夜间无红外补光","priority":"高","tags":["夜视失效","夜间全黑","红外不亮"],"applies_to":"IPC/红外灯板/光敏电阻","judges":[{"type":"judge","title":"用手机相机看红外灯夜间是否发红光","desc":"用手机相机看红外灯夜间是否发红光"},{"type":"judge","title":"遮镜头听IR-CUT切换咔哒声判断滤光片","desc":"遮镜头听IR-CUT切换咔哒声判断滤光片"}],"causes":[{"type":"cause","title":"红外LED灯板老化/损坏","desc":"IR LED寿命到期或高温老化","checks":["手机相机目视检查红外灯"],"solution":"更换同规格红外灯板"},{"type":"cause","title":"光敏电阻线松/失效","desc":"光敏电阻接线松动导致无法切换夜视","checks":["检查光敏电阻接线"],"solution":"重接光敏电阻线或更换"},{"type":"cause","title":"夜间供电不足","desc":"红外开启后功耗增大，供电不足导致无法工作","checks":["夜间测摄像机端电压/电流"],"solution":"增大供电余量（≥1A/台）、更换PoE电源"},{"type":"cause","title":"IR-CUT滤光片卡住","desc":"滤光片机械卡死影响夜视","checks":["遮镜头听切换声"],"solution":"多次重启/日夜切换复位，卡死则更换"}],"prevention":"供电留红外余量、选购低照度（<0.1Lux）设备、定期检查红外灯","source_note":"ED Viston、ihrsecurity、fcxconn、后为科技","order":1},{"id":"f_nt_white","type":"symptom","title":"夜视发白/过曝","desc":"夜间画面一片白、看不清细节","condition":"红外开启时画面过亮","priority":"中","tags":["夜视发白","过曝","白茫茫"],"applies_to":"IPC/红外灯/安装角度","judges":[{"type":"judge","title":"检查是否正对反光面（墙面/玻璃）","desc":"检查是否正对反光面（墙面/玻璃）"},{"type":"judge","title":"检查红外灯功率是否过大","desc":"检查红外灯功率是否过大"}],"causes":[{"type":"cause","title":"红外反光（IR bounce）","desc":"镜头正对墙面/玻璃等反光面，红外反射回镜头","checks":["检查安装角度"],"solution":"调整安装角度避开反光面"},{"type":"cause","title":"红外功率过大/角度不当","desc":"红外LED功率设置过高或补光角度与镜头不匹配","checks":["在设置中调整红外功率"],"solution":"降低红外LED功率、调整补光角度"}],"prevention":"安装时避开反光面、按视场角匹配补光灯","source_note":"fcxconn、ED Viston、ihrsecurity","order":2},{"id":"f_nt_noise","type":"symptom","title":"夜间噪点多/看不清细节","desc":"夜间画面噪点、雪花、细节模糊","condition":"低照度下画质差","priority":"中","tags":["噪点","雪花","夜间模糊"],"applies_to":"IPC/低照度性能","judges":[{"type":"judge","title":"判断是否环境光照不足而设备低照度性能差","desc":"判断是否环境光照不足而设备低照度性能差"},{"type":"judge","title":"检查3D降噪与快门设置","desc":"检查3D降噪与快门设置"}],"causes":[{"type":"cause","title":"设备低照度性能不足","desc":"最低照度>0.1Lux的无灯光场景夜视差","checks":["查设备最低照度参数"],"solution":"选用0.01Lux以下低照度设备或增加补光"},{"type":"cause","title":"降噪/快门参数不当","desc":"3D噪点抑制关闭、快门过慢","checks":["检查图像设置"],"solution":"开启3D降噪、调整快门与增益"},{"type":"cause","title":"红外窗口脏污","desc":"红外窗口灰尘水渍散射红外光","checks":["目视检查红外窗口"],"solution":"清洁红外窗口"}],"prevention":"按场景选低照度设备、定期清洁红外窗口","source_note":"后为科技、ED Viston、Dahua","order":3},{"id":"f_nt_plate","type":"symptom","title":"红外模式看不清车牌","desc":"夜间红外模式下车牌反光看不清","condition":"夜间抓拍车牌需求场景","priority":"中","tags":["车牌看不清","红外车牌","抓拍"],"applies_to":"球机/枪机/卡口","judges":[{"type":"judge","title":"确认使用场景为车牌识别（需彩色模式+强光抑制）","desc":"确认使用场景为车牌识别（需彩色模式+强光抑制）"}],"causes":[{"type":"cause","title":"红外模式反光","desc":"红外下金属车牌反光导致过曝无法识别","checks":["检查日夜模式设置"],"solution":"将摄像机设为彩色模式"},{"type":"cause","title":"强光抑制未开","desc":"车灯/反光过强","checks":["检查背光/强光抑制设置"],"solution":"开启强光抑制并调高等级、调整车灯角度"},{"type":"cause","title":"快门过慢","desc":"运动车牌拖影","checks":["检查曝光模式"],"solution":"快门优先、降低快门值、开启3D降噪"}],"prevention":"车牌场景选用专用卡口/球机并配置强光抑制与快门","source_note":"大华常见问题汇总","order":4}]},{"id":"cat_ptz","name":"云台/功能类","desc":"云台控制、移动侦测、音频等功能故障，多为协议参数或设置问题","order":6,"faults":[{"id":"f_ptz_control","type":"symptom","title":"云台无法控制","desc":"球机/云台无法转动或控制无效","condition":"控制命令无响应","priority":"中","tags":["云台不转","云台无法控制","球机不动"],"applies_to":"球机/云台/RS485","judges":[{"type":"judge","title":"先查485控制线正负极","desc":"先查485控制线正负极"},{"type":"judge","title":"再核对协议/波特率/地址一致性","desc":"再核对协议/波特率/地址一致性"}],"causes":[{"type":"cause","title":"RS485线接反","desc":"正负极（A/B）接反导致无法控制","checks":["检查485线序"],"solution":"正负极对调重接"},{"type":"cause","title":"协议/波特率不匹配","desc":"控制协议（Pelco-D/P）或波特率与云台不一致","checks":["核对NVR与云台参数"],"solution":"设置一致协议与波特率"},{"type":"cause","title":"电机卡死/负载超限","desc":"云台机械卡死或负载超限","checks":["断电手动转动测试"],"solution":"断电手动盘转复位，卡死则更换电机"},{"type":"cause","title":"供电不足","desc":"云台供电不足导致无法转动","checks":["测量供电电压电流"],"solution":"检查云台供电盒接线、更换供电盒"}],"prevention":"485线按规范接线、安装前核对协议参数、负载不超限","source_note":"大华常见问题、后为科技、fcxconn、昊峰威视","order":1},{"id":"f_ptz_spin","type":"symptom","title":"云台自转/自动朝下","desc":"云台不受控制自动转动或偏向","condition":"云台异常自转","priority":"高","tags":["云台自转","自动朝下","失控"],"applies_to":"球机/车载键盘","judges":[{"type":"judge","title":"拔掉外接键盘对比验证是否为键盘问题","desc":"拔掉外接键盘对比验证是否为键盘问题"},{"type":"judge","title":"检查在线连接数是否被其他设备抢占","desc":"检查在线连接数是否被其他设备抢占"}],"causes":[{"type":"cause","title":"供电不足","desc":"云台供电不足引起控制异常","checks":["检查供电盒接线取电"],"solution":"重新接线或更换供电盒"},{"type":"cause","title":"外接键盘摇杆异常","desc":"车载键盘摇杆弹簧偏离中心点","checks":["拔掉键盘对比验证"],"solution":"维修/更换键盘"},{"type":"cause","title":"被其他设备抢占控制","desc":"其他IP连接数抢占云台控制权","checks":["查看在线连接数并加黑名单验证"],"solution":"将抢占IP加入黑名单、规范接入权限"}],"prevention":"供电可靠、外接控制设备定期检查、限制并发连接","source_note":"大华常见问题汇总","order":2},{"id":"f_func_motion","type":"symptom","title":"移动侦测误报/漏报","desc":"频繁误报警或该触发时不报警","condition":"报警事件异常","priority":"中","tags":["移动侦测","误报","漏报","报警"],"applies_to":"IPC/NVR/报警设置","judges":[{"type":"judge","title":"区分误报（灵敏度过高）与漏报（灵敏度低/联动未开）","desc":"区分误报（灵敏度过高）与漏报（灵敏度低/联动未开）"}],"causes":[{"type":"cause","title":"灵敏度过高","desc":"树叶、昆虫、光线变化触发误报","checks":["检查侦测灵敏度设置"],"solution":"灵敏度调至中等、缩小检测区域"},{"type":"cause","title":"无AI人车分类","desc":"普通移动侦测无法过滤无效触发","checks":["检查是否支持人形/车辆侦测"],"solution":"开启人形侦测/AI人车分类、设置侦测区域"},{"type":"cause","title":"联动未开启/漏报","desc":"报警推送、声光联动或录像联动未开启","checks":["检查NVR/APP报警设置"],"solution":"开启报警推送与联动、调整侦测区域覆盖"}],"prevention":"部署AI人车分类、合理设置侦测区域与灵敏度","source_note":"后为科技、fcxconn、Dahua、ihrsecurity","order":3},{"id":"f_func_audio","type":"symptom","title":"音频异常/无声音","desc":"拾音无声音、声音小或杂音","condition":"音频采集或播放异常","priority":"低","tags":["无声音","音频异常","拾音"],"applies_to":"IPC/拾音器/音频线","judges":[{"type":"judge","title":"检查麦克风是否被遮挡","desc":"检查麦克风是否被遮挡"},{"type":"judge","title":"检查接线与编码格式","desc":"检查接线与编码格式"}],"causes":[{"type":"cause","title":"麦克风遮挡/损坏","desc":"内置麦克风被遮挡或外接拾音器故障","checks":["目视检查麦克风"],"solution":"清理遮挡、更换拾音器"},{"type":"cause","title":"接线正负极错误","desc":"外接拾音器正负极接反","checks":["检查接线"],"solution":"按正负极正确接线"},{"type":"cause","title":"编码格式不匹配","desc":"音频编码（G.711/AAC）与NVR不兼容","checks":["检查音频编码设置"],"solution":"选择NVR支持的音频编码"},{"type":"cause","title":"电磁干扰","desc":"音频线与强电/网线并行受干扰","checks":["检查布线"],"solution":"音频线单独布线、使用屏蔽音频线"}],"prevention":"音频线与强电分离、选用屏蔽线、确认编码兼容","source_note":"后为科技、fcxconn","order":4}]},{"id":"cat_platform","name":"平台/远程访问类","desc":"云平台不在线、客户端无法登录、远程访问失败等，多与网络参数、端口映射、账号权限相关","order":7,"faults":[{"id":"f_plat_cloudoff","type":"symptom","title":"云平台显示不在线","desc":"APP/云平台显示设备离线，但本地监控正常","condition":"本地正常、云平台离线","priority":"高","tags":["云平台离线","不在线","绑定失效"],"applies_to":"NVR/IPC/路由器/云平台","judges":[{"type":"judge","title":"确认本地监控是否正常，区分设备问题还是联网问题","desc":"确认本地监控是否正常，区分设备问题还是联网问题"},{"type":"judge","title":"检查NVR网络检测：到路由器/外网是否可达","desc":"检查NVR网络检测：到路由器/外网是否可达"}],"causes":[{"type":"cause","title":"网段变化导致无法联网","desc":"路由器复位/更换后网段变化，设备静态IP失效","checks":["检查IP/网关/DNS参数","网络检测目的地址测试"],"solution":"改为动态IP、重设正确网段与网关、DNS设114.114.114.114"},{"type":"cause","title":"云平台绑定失效","desc":"验证码清空、绑定失效、密钥过期","checks":["检查平台接入设置中是否启用并填写验证码"],"solution":"重新启用云服务并填写6位大写验证码（不能为ABCDEF）"},{"type":"cause","title":"路由器限制","desc":"黑名单、认证、AP隔离、UPnP关闭阻断心跳","checks":["查路由器被禁设备/认证列表"],"solution":"解禁、认证、关AP隔离、开UPnP"},{"type":"cause","title":"DNS/时间异常","desc":"无法解析厂商域名、系统时间偏差超10分钟拒绝连接","checks":["检查DNS解析","检查系统时间"],"solution":"手动设DNS（114.114.114.114/8.8.8.8）、NTP自动校时"}],"prevention":"设备DHCP或登记静态IP、路由器白名单预登记、开启NTP校时","source_note":"TP-LINK、海康萤石云排查、jb51、sipkosecurity","order":1},{"id":"f_plat_login","type":"symptom","title":"客户端无法登录/连接失败","desc":"电脑/手机客户端登录失败或连接服务器失败","condition":"客户端侧登录异常","priority":"中","tags":["登录失败","连接失败","客户端"],"applies_to":"客户端/平台服务器/网络","judges":[{"type":"judge","title":"Ping/Telnet平台地址确认网络可达性","desc":"Ping/Telnet平台地址确认网络可达性"},{"type":"judge","title":"核对账号密码与权限","desc":"核对账号密码与权限"}],"causes":[{"type":"cause","title":"平台IP/端口配置错误","desc":"客户端设置的平台地址或端口不正确","checks":["Ping平台IP","Telnet端口测试"],"solution":"核对平台IP与端口（如8500/17000等）"},{"type":"cause","title":"账号密码/权限错误","desc":"用户名密码错误或用户被禁用、权限未开","checks":["核对账号信息"],"solution":"重置密码、检查回放/预览权限"},{"type":"cause","title":"网络异常/服务未运行","desc":"客户端与服务器网络不通，或后台服务未启动","checks":["Ping测试","检查服务运行状态"],"solution":"修复网络、重启后台服务"},{"type":"cause","title":"端口未映射/被屏蔽","desc":"跨网访问所需端口未映射或被防火墙拦截","checks":["检查端口映射与防火墙"],"solution":"正确映射端口、防火墙放行"}],"prevention":"客户端地址端口登记、账号权限定期审计、防火墙规则规范","source_note":"海康HikCentral排障手册、sipkosecurity、whizz-experts","order":2},{"id":"f_plat_port","type":"symptom","title":"远程访问失败（端口/DDNS）","desc":"外网无法通过端口或域名访问NVR","condition":"外网访问不通","priority":"中","tags":["远程访问失败","端口屏蔽","DDNS","假公网"],"applies_to":"NVR/路由器/宽带","judges":[{"type":"judge","title":"先确认宽带是否为真公网IP","desc":"先确认宽带是否为真公网IP"},{"type":"judge","title":"检查UPnP映射状态与外部端口","desc":"检查UPnP映射状态与外部端口"}],"causes":[{"type":"cause","title":"假公网IP","desc":"长城宽带/铁通等运营商提供非公网或假公网IP","checks":["ip138查公网IP与路由器WAN口对比"],"solution":"联系运营商要公网IP或使用云平台P2P"},{"type":"cause","title":"80端口被运营商屏蔽","desc":"运营商屏蔽80端口HTTP入站","checks":["检查映射外部端口是否为80"],"solution":"外部端口改为9000及以上"},{"type":"cause","title":"UPnP未开启/映射失败","desc":"路由器UPnP未开启导致端口映射不生效","checks":["查看映射条目状态是否生效"],"solution":"开启路由器UPnP、手动配置端口转发"},{"type":"cause","title":"动态IP无DDNS","desc":"PPPoE拨号IP每次变化，外网域名失效","checks":["确认是否使用动态IP"],"solution":"配置DDNS（花生壳/厂商DDNS）绑定域名"}],"prevention":"优先云平台P2P方案、UPnP开启、外网端口避免80","source_note":"TP-LINK、securitylifeinc、sipkosecurity","order":3}]}]};
+
+/* ===== 状态 ===== */
+const state = { cat: 0, fault: null, query: "" };
+
+const $ = id => document.getElementById(id);
+const PRI_COLOR = { "高": "var(--red)", "中": "var(--amber)", "低": "var(--txt3)" };
+
+/* ===== 渲染：分类 ===== */
+function renderCats(){
+  const box = $("catList");
+  const matched = matchCats();
+  box.innerHTML = "";
+  FAULT_DATA.categories.forEach((c, i) => {
+    if(state.query && !matched.has(c.id)) return;
+    const el = document.createElement("button");
+    el.className = "cat" + (state.cat === i ? " on" : "");
+    el.innerHTML = `<span class="no">${c.order}</span><span class="nm">${c.name}</span><span class="n">${c.faults.length}</span>`;
+    el.addEventListener("click", () => { state.cat = i; state.fault = null; renderAll(); });
+    box.appendChild(el);
+  });
+  $("catCnt").textContent = FAULT_DATA.categories.length + " 类";
+  if(!box.children.length){
+    box.innerHTML = `<div class="empty">无匹配分类<br>换个关键词试试</div>`;
+  }
+}
+
+function matchCats(){
+  const set = new Set();
+  if(!state.query) return set;
+  FAULT_DATA.categories.forEach(c => {
+    const hit = c.faults.some(f =>
+      f.title.includes(state.query) || f.tags.some(t => t.includes(state.query)) || f.desc.includes(state.query));
+    if(hit) set.add(c.id);
+  });
+  return set;
+}
+
+/* ===== 渲染：故障 ===== */
+function renderFaults(){
+  const box = $("faultList");
+  const cat = FAULT_DATA.categories[state.cat];
+  $("faultColTitle").textContent = cat.name;
+  let list = cat.faults;
+  if(state.query){
+    list = cat.faults.filter(f =>
+      f.title.includes(state.query) || f.tags.some(t => t.includes(state.query)) || f.desc.includes(state.query));
+  }
+  box.innerHTML = "";
+  $("faultCnt").textContent = list.length + " 条";
+  list.forEach(f => {
+    const el = document.createElement("button");
+    el.className = "fault" + (state.fault === f.id ? " on" : "");
+    const tags = f.tags.slice(0, 3).map(t => `<span class="tag">${t}</span>`).join("");
+    el.innerHTML = `
+      <span class="pri" style="background:${PRI_COLOR[f.priority] || "var(--txt3)"}"></span>
+      <span class="fbody">
+        <div class="ft">${f.title}</div>
+        <div class="fd">${f.desc}</div>
+        <div class="ftags">${tags}</div>
+      </span>`;
+    el.addEventListener("click", () => { state.fault = f.id; renderDetail(); markFault(); });
+    box.appendChild(el);
+  });
+  if(!box.children.length){
+    box.innerHTML = `<div class="empty">该分类下无匹配故障</div>`;
+  }
+}
+
+function markFault(){
+  [...$("faultList").children].forEach(el => {
+    el.classList.toggle("on", state.fault && el.textContent.includes(state.fault));
+  });
+}
+
+/* ===== 渲染：详情 ===== */
+function renderDetail(){
+  const box = $("detailBox");
+  const cat = FAULT_DATA.categories[state.cat];
+  const f = cat.faults.find(x => x.id === state.fault);
+  if(!f){
+    box.innerHTML = `
+      <div class="hint">
+        <div class="big"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#6E87A3" stroke-width="1.8" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><path d="M10.3 3.9 2.6 17.5a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+        <div>选择左侧故障现象<br>查看判断要点、原因与处理</div>
+      </div>`;
+    $("crumb").innerHTML = `<b>${cat.name}</b><span class="sep">→</span><span>选择故障</span>`;
+    return;
+  }
+  $("crumb").innerHTML = `<b>${cat.name}</b><span class="sep">→</span><b>${f.title}</b>`;
+
+  const pri = f.priority ? `<span style="color:${PRI_COLOR[f.priority]};font-weight:700">【${f.priority}优先级】</span> ` : "";
+  const judges = f.judges.map((j, i) =>
+    `<div class="judge"><span class="ic">${i + 1}</span><span>${j.title}</span></div>`).join("");
+
+  const causes = f.causes.map((c, i) => {
+    const checks = (c.checks || []).map(x => x).join("；");
+    return `
+      <div class="cause">
+        <div class="ct"><span class="no">${i + 1}</span>${c.title}</div>
+        <div class="cd">${c.desc}</div>
+        ${checks ? `<div class="ck"><span class="lab">排查：</span>${checks}</div>` : ""}
+        <div class="sol"><span class="lab">处理：</span>${c.solution}</div>
+      </div>`;
+  }).join("");
+
+  const prev = f.prevention ? `<div class="d-prev"><b>预防：</b>${f.prevention}</div>` : "";
+  const src = f.source_note ? `<div class="d-src">参考：${f.source_note}</div>` : "";
+
+  box.innerHTML = `
+    <div class="d-head">
+      <div class="d-title">${pri}${f.title}</div>
+      <div class="d-desc">${f.desc}</div>
+      <div class="d-cond"><b>触发条件</b> ${f.condition || "—"}</div>
+    </div>
+    <div class="block">
+      <div class="block-h"><span class="bar" style="background:var(--judge)"></span>判断要点 · 先做这几步</div>
+      <div class="judge-list">${judges}</div>
+    </div>
+    <div class="block">
+      <div class="block-h"><span class="bar" style="background:var(--cause)"></span>可能原因 → 排查 → 处理</div>
+      ${causes}
+    </div>
+    ${prev}
+    ${src}`;
+}
+
+/* ===== 搜索 ===== */
+$("searchInput").addEventListener("input", e => {
+  state.query = e.target.value.trim();
+  state.fault = null;
+  renderCats();
+  renderFaults();
+  renderDetail();
+});
+
+/* ===== 初始化 ===== */
+function renderAll(){
+  renderCats();
+  renderFaults();
+  renderDetail();
+}
+renderAll();
+</script>
+</body>
+</html>
