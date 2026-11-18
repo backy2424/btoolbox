@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>二维码生成 · 工具箱</title>
+<style>
+  :root{
+    --bg:#E7F2EB; --card:#FFFFFF; --ink:#085041; --ink2:#5F5E5A; --ink3:#888780;
+    --accent:#0F6E56; --accentL:#1D9E75; --border:#D5E6DB; --radius:16px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.6; min-height:100vh;
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:0 24px;}
+  header{padding:22px 0;}
+  .back{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--ink2);text-decoration:none;}
+  .back:hover{color:var(--ink);}
+  .head{padding:8px 0 20px;}
+  .head h1{font-size:clamp(26px,4vw,36px);font-weight:600;letter-spacing:1px;}
+  .head p{font-size:14px;color:var(--ink2);margin-top:8px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:16px;}
+  .tabs{display:flex;gap:8px;margin-bottom:16px;}
+  .tab{flex:1;text-align:center;padding:10px 0;border:1px solid var(--border);border-radius:10px;font-size:15px;font-weight:600;color:var(--ink2);cursor:pointer;background:transparent;transition:.15s;}
+  .tab.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  label{display:block;font-size:13px;font-weight:600;color:var(--accentL);letter-spacing:1px;margin:14px 0 6px;}
+  textarea,input[type=text]{
+    width:100%;border:1px solid var(--border);border-radius:10px;padding:12px 14px;
+    font-size:15px;font-family:inherit;color:var(--ink);resize:vertical;background:#fff;
+  }
+  textarea{min-height:110px;}
+  textarea:focus,input[type=text]:focus{outline:none;border-color:var(--accentL);}
+  .opts{display:flex;gap:12px;flex-wrap:wrap;}
+  .opt{flex:1;min-width:150px;}
+  select{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--ink);background:#fff;}
+  .ecrow{display:flex;gap:6px;}
+  .ec{flex:1;text-align:center;padding:9px 0;border:1px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:var(--ink2);background:#fff;transition:.15s;}
+  .ec.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .hint{font-size:12px;color:var(--ink3);margin-top:6px;}
+  .preview{display:flex;flex-direction:column;align-items:center;padding:10px 0 4px;}
+  .qrbox{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px;max-width:100%;}
+  .qrbox canvas,.qrbox svg{display:block;max-width:100%;height:auto;}
+  .empty{color:var(--ink3);font-size:14px;padding:36px 0;text-align:center;}
+  .btns{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
+  .btn{flex:1;min-width:130px;text-align:center;padding:11px 0;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--ink);font-size:14px;font-weight:600;cursor:pointer;transition:.15s;text-decoration:none;}
+  .btn:hover{border-color:var(--accentL);}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .msg{font-size:13px;color:#A32D2D;margin-top:10px;display:none;}
+  .batch-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;}
+  .batch-item{border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;}
+  .batch-item .t{font-size:12px;color:var(--ink3);word-break:break-all;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em;}
+  .batch-item canvas{display:block;margin:0 auto;max-width:100%;height:auto;}
+  .batch-item .btn{margin-top:10px;min-width:0;padding:8px 0;font-size:13px;}
+  footer{padding:18px 0 26px;text-align:center;font-size:12px;color:var(--ink3);}
+</style>
+</head>
+<body>
+<header><div class="wrap"><a class="back" href="../">← 返回工具箱</a></div></header>
+
+<div class="wrap">
+  <div class="head">
+    <h1>二维码生成</h1>
+    <p>文本、链接、Wi-Fi、名片……批量多行同样支持，纯本地生成，数据不上传</p>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab on" id="tabSingle" onclick="setMode('single')">单个生成</button>
+      <button class="tab" id="tabBatch" onclick="setMode('batch')">批量生成</button>
+    </div>
+
+    <div id="singlePane">
+      <label>内容</label>
+      <input type="text" id="text" placeholder="输入文本或网址，如 https://example.com" oninput="renderSingle()">
+    </div>
+    <div id="batchPane" style="display:none">
+      <label>内容（每行一个二维码，最多 50 行）</label>
+      <textarea id="batchText" placeholder="第一行的二维码&#10;第二行的二维码&#10;第三行的二维码" oninput="renderBatch()"></textarea>
+    </div>
+
+    <div class="opts">
+      <div class="opt">
+        <label>纠错级别</label>
+        <div class="ecrow">
+          <button class="ec" data-ec="L" onclick="setEC('L')">L</button>
+          <button class="ec on" data-ec="M" onclick="setEC('M')">M</button>
+          <button class="ec" data-ec="Q" onclick="setEC('Q')">Q</button>
+          <button class="ec" data-ec="H" onclick="setEC('H')">H</button>
+        </div>
+        <div class="hint">级别越高越耐遮挡，容量越小</div>
+      </div>
+      <div class="opt">
+        <label>输出尺寸</label>
+        <select id="size">
+          <option value="256">256 px</option>
+          <option value="384" selected>384 px</option>
+          <option value="512">512 px</option>
+          <option value="768">768 px</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="card" id="previewCard">
+    <div id="singlePreview">
+      <div class="preview">
+        <div id="singleEmpty" class="empty">输入内容后自动生成</div>
+        <div class="qrbox" id="singleBox" style="display:none"><canvas id="qrCanvas"></canvas></div>
+      </div>
+      <div class="btns" id="singleBtns" style="display:none">
+        <button class="btn primary" onclick="downloadPNG('qrCanvas', qrFilename())">下载 PNG</button>
+        <button class="btn" onclick="downloadSVG()">下载 SVG</button>
+        <button class="btn" onclick="copyImage()">复制图片</button>
+      </div>
+    </div>
+    <div id="batchPreview" style="display:none">
+      <div id="batchEmpty" class="empty">每输入一行自动生成一个二维码</div>
+      <div class="batch-list" id="batchList"></div>
+    </div>
+  </div>
+
+  <footer>工具箱 · 纯本地运行 · 数据不上传</footer>
+</div>
+
+<script src="qrcode.min.js"></script>
+<script>
+  var mode = "single", ec = "M", batchCount = 0;
+
+  function setMode(m){
+    mode = m;
+    document.getElementById("tabSingle").classList.toggle("on", m==="single");
+    document.getElementById("tabBatch").classList.toggle("on", m==="batch");
+    document.getElementById("singlePane").style.display = m==="single" ? "" : "none";
+    document.getElementById("batchPane").style.display = m==="batch" ? "" : "none";
+    document.getElementById("singlePreview").style.display = m==="single" ? "" : "none";
+    document.getElementById("batchPreview").style.display = m==="batch" ? "" : "none";
+    if(m==="single") renderSingle(); else renderBatch();
+  }
+  function setEC(v){
+    ec = v;
+    document.querySelectorAll(".ec").forEach(function(b){ b.classList.toggle("on", b.dataset.ec===v); });
+    mode==="single" ? renderSingle() : renderBatch();
+  }
+  function showMsg(t){
+    var el = document.getElementById("msg");
+    if(t){ el.textContent = t; el.style.display = "block"; } else { el.style.display = "none"; }
+  }
+
+  function makeQR(text){
+    var q = qrcode(0, ec);          // 0 = 自动选择最小版本
+    q.addData(text);
+    q.make();
+    return q;
+  }
+
+  function drawToCanvas(canvas, q, targetPx){
+    var count = q.getModuleCount();
+    var margin = 4;                                    // 静区 4 模块
+    var cell = Math.max(1, Math.floor(targetPx / (count + margin*2)));
+    var size = (count + margin*2) * cell;
+    canvas.width = canvas.height = size;
+    var ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0,0,size,size);
+    ctx.fillStyle = "#000000";
+    for(var r=0; r<count; r++){
+      for(var c=0; c<count; c++){
+        if(q.isDark(r,c)) ctx.fillRect((c+margin)*cell,(r+margin)*cell,cell,cell);
+      }
+    }
+    return size;
+  }
+
+  function buildSVG(q, targetPx){
+    var count = q.getModuleCount();
+    var margin = 4, cell = 8;
+    var size = (count + margin*2) * cell;
+    var s = '<svg xmlns="http://www.w3.org/2000/svg" width="'+targetPx+'" height="'+targetPx+'" viewBox="0 0 '+size+' '+size+'" shape-rendering="crispEdges">';
+    s += '<rect width="'+size+'" height="'+size+'" fill="#FFFFFF"/>';
+    for(var r=0; r<count; r++) for(var c=0; c<count; c++)
+      if(q.isDark(r,c)) s += '<rect x="'+((c+margin)*cell)+'" y="'+((r+margin)*cell)+'" width="'+cell+'" height="'+cell+'" fill="#000000"/>';
+    return s + '</svg>';
+  }
+
+  function renderSingle(){
+    showMsg("");
+    var text = document.getElementById("text").value;
+    var box = document.getElementById("singleBox");
+    var empty = document.getElementById("singleEmpty");
+    var btns = document.getElementById("singleBtns");
+    if(!text.trim()){
+      box.style.display = "none"; btns.style.display = "none";
+      empty.style.display = "block"; return;
+    }
+    try{
+      var q = makeQR(text);
+      var px = parseInt(document.getElementById("size").value, 10);
+      drawToCanvas(document.getElementById("qrCanvas"), q, px);
+      box.style.display = "block"; btns.style.display = "flex";
+      empty.style.display = "none";
+    }catch(e){
+      box.style.display = "none"; btns.style.display = "none"; empty.style.display = "none";
+      showMsg("内容过长或包含异常字符，当前纠错级别下无法生成，请缩短内容或改用 L 级别。");
+    }
+  }
+
+  function qrFilename(){
+    var t = document.getElementById("text").value.trim();
+    var base = t.replace(/^https?:\/\//,"").replace(/[\\/:*?"<>|\s]+/g,"_").slice(0,30) || "qrcode";
+    return base;
+  }
+
+  function downloadCanvas(canvas, name){
+    var a = document.createElement("a");
+    a.download = name + ".png";
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+  }
+  function downloadPNG(canvasId, name){ downloadCanvas(document.getElementById(canvasId), name); }
+  function downloadSVG(){
+    try{
+      var q = makeQR(document.getElementById("text").value);
+      var blob = new Blob([buildSVG(q, parseInt(document.getElementById("size").value,10))], {type:"image/svg+xml"});
+      var a = document.createElement("a");
+      a.download = qrFilename() + ".svg";
+      a.href = URL.createObjectURL(blob); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    }catch(e){ showMsg("SVG 导出失败：" + e.message); }
+  }
+  function copyImage(){
+    var canvas = document.getElementById("qrCanvas");
+    if(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem){
+      canvas.toBlob(function(blob){
+        navigator.clipboard.write([new ClipboardItem({"image/png": blob})])
+          .then(function(){ showMsg(""); alert("已复制到剪贴板"); })
+          .catch(function(){ fallbackCopy(canvas); });
+      }, "image/png");
+    } else fallbackCopy(canvas);
+  }
+  function fallbackCopy(canvas){
+    try{
+      var div = document.createElement("div");
+      div.style.position="fixed"; div.style.opacity="0";
+      var img = document.createElement("img");
+      img.src = canvas.toDataURL("image/png");
+      div.appendChild(img); document.body.appendChild(div);
+      var range = document.createRange(); range.selectNode(img);
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      document.execCommand("copy"); document.body.removeChild(div);
+      alert("已复制图片（兼容模式）");
+    }catch(e){ alert("当前环境不支持复制图片，请使用下载功能"); }
+  }
+
+  function renderBatch(){
+    showMsg("");
+    var lines = document.getElementById("batchText").value.split("\n")
+      .map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 50);
+    var list = document.getElementById("batchList");
+    var empty = document.getElementById("batchEmpty");
+    if(lines.length === 0){ list.innerHTML = ""; empty.style.display = "block"; return; }
+    empty.style.display = "none";
+    batchCount = 0;
+    list.innerHTML = "";
+    lines.forEach(function(text, i){
+      try{
+        var q = makeQR(text);
+        var item = document.createElement("div");
+        item.className = "batch-item";
+        var t = document.createElement("div"); t.className = "t"; t.textContent = text;
+        var cv = document.createElement("canvas");
+        drawToCanvas(cv, q, 160);
+        var btn = document.createElement("button");
+        btn.className = "btn"; btn.textContent = "下载 PNG";
+        btn.onclick = function(){
+          var q2 = makeQR(text);
+          var px = parseInt(document.getElementById("size").value, 10);
+          var big = document.createElement("canvas");
+          drawToCanvas(big, q2, px);
+          var label = text.replace(/^https?:\/\//,"").replace(/[\\/:*?"<>|\s]+/g,"_").slice(0,30) || ("qrcode_"+(i+1));
+          downloadCanvas(big, label);
+        };
+        item.appendChild(t); item.appendChild(cv); item.appendChild(btn);
+        list.appendChild(item);
+        batchCount++;
+      }catch(e){
+        var item = document.createElement("div");
+        item.className = "batch-item";
+        item.innerHTML = '<div class="t" style="color:#A32D2D">生成失败</div><div class="hint">内容过长：' + text.slice(0,20) + '…</div>';
+        list.appendChild(item);
+      }
+    });
+  }
+</script>
+</body>
+</html>
