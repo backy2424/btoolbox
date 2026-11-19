@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>字母拼词 · Bananagrams</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c232c; --line:#2b333d;
+    --text:#e6edf3; --sub:#8b98a9; --dim:#5d6879;
+    --wood:#e8c37a; --wood-line:#c79a4b; --wood-text:#4a3410;
+    --ok:#3fb950; --ok-bg:#12291a; --warn:#d9a441; --warn-bg:#2e2616;
+    --err:#f85149; --accent:#58a6ff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);
+    background-image:radial-gradient(900px 500px at 12% -10%,#152238 0%,transparent 60%),radial-gradient(700px 500px at 92% 0%,#1d1838 0%,transparent 55%);
+    color:var(--text);min-height:100vh;padding:22px 16px 60px;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+  header{text-align:center;margin-bottom:18px;}
+  .brand{display:inline-flex;align-items:center;gap:9px;color:var(--sub);font-size:12px;letter-spacing:2px;}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--wood);box-shadow:0 0 10px var(--wood);}
+  h1{font-size:29px;margin:9px 0 6px;letter-spacing:-.5px;}
+  h1 span{color:var(--wood);}
+  .lead{color:var(--sub);font-size:13px;max-width:660px;margin:0 auto;line-height:1.7;}
+
+  .modes{display:flex;justify-content:center;gap:8px;margin:18px 0 4px;}
+  .modes button{padding:9px 20px;font-size:13px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--sub);cursor:pointer;transition:.15s;}
+  .modes button:hover{background:#252e39;}
+  .modes button.active{background:#1f6feb22;border-color:#1f6feb;color:var(--accent);font-weight:600;}
+  .goal-row{display:flex;justify-content:center;align-items:center;gap:6px;margin:12px 0 0;flex-wrap:wrap;}
+  .goal-row .lab{color:var(--dim);font-size:12px;margin-right:4px;}
+  .goal-row button{padding:5px 12px;font-size:12px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--sub);cursor:pointer;}
+  .goal-row button.active{background:#1f6feb33;border-color:#1f6feb;color:var(--accent);}
+
+  .stats{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:18px 0;}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 16px;text-align:center;min-width:92px;}
+  .stat .lbl{font-size:11px;color:var(--dim);letter-spacing:1px;}
+  .stat .val{font-size:20px;font-weight:600;margin-top:2px;}
+  .stat .val.wood{color:var(--wood);}
+  .stat .val.ok{color:var(--ok);}
+  .progress{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:6px;width:100%;}
+  .progress i{display:block;height:100%;background:linear-gradient(90deg,#2ea043,#56d364);width:0;transition:width .35s;}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:18px;align-items:start;}
+  @media(max-width:820px){.layout{grid-template-columns:1fr;}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;}
+  .card h2{font-size:13px;color:var(--sub);font-weight:500;letter-spacing:1px;margin-bottom:12px;}
+
+  .board-wrap{display:flex;justify-content:center;overflow:auto;}
+  #board{display:grid;gap:2px;background:var(--panel2);padding:6px;border-radius:10px;border:1px solid var(--line);}
+  .cell{
+    width:32px;height:32px;border-radius:5px;background:#11161d;border:1px solid #202832;
+    display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;
+    color:var(--wood-text);cursor:pointer;user-select:none;transition:background .1s,border-color .1s;
+  }
+  .cell:hover{border-color:#3a4654;}
+  .cell.filled{background:var(--wood);border-color:var(--wood-line);box-shadow:inset 0 -2px 0 #b98f3f;}
+  .cell.ok{background:#2ea043;border-color:#3fb950;box-shadow:inset 0 -2px 0 #1d7a2e;color:#fff;}
+  .cell.unknown{background:#7a5f1e;border-color:var(--warn);box-shadow:inset 0 -2px 0 #5c4713;color:#fff3d6;}
+  .cell.cursor{outline:2px solid var(--accent);outline-offset:-1px;}
+  @media(max-width:560px){.cell{width:24px;height:24px;font-size:13px;}}
+
+  .side{display:flex;flex-direction:column;gap:16px;}
+  .rack{display:flex;flex-wrap:wrap;gap:5px;min-height:44px;max-height:190px;overflow-y:auto;}
+  .tile{
+    width:36px;height:36px;border-radius:6px;background:var(--wood);border:1px solid var(--wood-line);
+    box-shadow:inset 0 -2px 0 #b98f3f;color:var(--wood-text);font-size:18px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;user-select:none;transition:transform .08s,outline .08s;
+  }
+  .tile:hover{transform:translateY(-2px);}
+  .tile.sel{outline:2px solid var(--accent);outline-offset:1px;transform:translateY(-3px);}
+  .tile .pt{position:absolute;right:3px;bottom:1px;font-size:9px;font-weight:600;opacity:.6;}
+  .rack-empty{color:var(--dim);font-size:12px;padding:10px 0;}
+
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  button{
+    font-family:inherit;font-size:13px;padding:10px;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line);background:var(--panel2);color:var(--text);transition:background .15s,border-color .15s;
+  }
+  button:hover{background:#252e39;border-color:#3a4654;}
+  button.primary{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:600;}
+  button.primary:hover{background:#2b7cf3;}
+  button.wide{grid-column:1/-1;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+
+  .msg{min-height:44px;border-radius:9px;padding:10px 12px;font-size:13px;line-height:1.6;}
+  .msg.ok{background:var(--ok-bg);border:1px solid #235c32;color:#7ee08a;}
+  .msg.warn{background:var(--warn-bg);border:1px solid #6b5320;color:#f0c869;}
+  .msg.info{background:var(--panel2);border:1px solid var(--line);color:var(--sub);}
+  .words{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+  .word-chip{background:#12291a;border:1px solid #235c32;color:#7ee08a;font-size:11px;padding:3px 7px;border-radius:5px;letter-spacing:.5px;}
+  .word-chip.warn{background:var(--warn-bg);border-color:#6b5320;color:var(--warn);}
+  .hint-line{font-size:12px;color:var(--sub);line-height:1.7;}
+  .hint-line b{color:var(--wood);letter-spacing:1px;}
+  .tips{color:var(--dim);font-size:12px;line-height:1.7;margin-top:10px;}
+  .tips code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:var(--sub);}
+  footer{text-align:center;color:var(--dim);font-size:11px;margin-top:26px;line-height:1.8;}
+  .hidden{display:none!important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="dot"></span>BANANAGRAMS · KIDS</div>
+    <h1>字母<span>拼词</span>挑战</h1>
+    <p class="lead" id="lead">用手里的字母随便拼英文单词，拼够目标数量就过关——不用交叉、不用用完，轻松玩。</p>
+  </header>
+
+  <div class="modes">
+    <button id="modeCasual" class="active">轻松模式（推荐）</button>
+    <button id="modeChallenge">挑战模式</button>
+  </div>
+
+  <div class="goal-row" id="goalRow">
+    <span class="lab">本局目标：</span>
+    <button data-goal="3">拼 3 个词</button>
+    <button data-goal="5" class="active">拼 5 个词</button>
+    <button data-goal="7">拼 7 个词</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat" style="min-width:120px;">
+      <div class="lbl">完成进度</div>
+      <div class="val ok" id="statProgress">0 / 5</div>
+      <div class="progress"><i id="progressBar"></i></div>
+    </div>
+    <div class="stat"><div class="lbl">得分</div><div class="val wood" id="statScore">0</div></div>
+    <div class="stat"><div class="lbl">剩余字母</div><div class="val" id="statLeft">0</div></div>
+    <div class="stat"><div class="lbl">已放字母</div><div class="val" id="statPlaced">0</div></div>
+  </div>
+
+  <div class="layout">
+    <div class="card">
+      <h2 id="boardTitle">拼词网格 · 点字母牌再点格子放置</h2>
+      <div class="board-wrap"><div id="board"></div></div>
+      <div class="tips" id="tipsCasual">
+        点下方字母牌，再点网格格子放下；也可以直接敲键盘输入。<b style="color:var(--ok)">绿色</b>是拼对的词，
+        <b style="color:var(--warn)">黄色</b>是词库里暂时没收录的串（不算错，可继续改）。攒够目标词数就过关，剩下的字母不用管。
+      </div>
+      <div class="tips hidden" id="tipsChallenge">
+        挑战模式：字母要全部用完，拼成相互交叉的词网，且每个词都在核心 500 词库内。点「检查拼词」验证。
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <h2>字母架 · <span id="rackCount">0</span> 张</h2>
+        <div class="rack" id="rack"><div class="rack-empty">点击「重新开始」发牌</div></div>
+      </div>
+
+      <div class="card">
+        <h2>操作</h2>
+        <div class="btns">
+          <button class="primary wide" id="btnNew">重新开始</button>
+          <button id="btnCheck" class="wide hidden">检查拼词</button>
+          <button id="btnHint">提示一个词</button>
+          <button id="btnAuto">帮我摆一个</button>
+          <button id="btnClear">清空网格</button>
+          <button id="btnSolve" class="hidden">显示答案</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>反馈</h2>
+        <div class="msg info" id="msg">点击「重新开始」开始游戏。</div>
+        <div class="hint-line" id="hintBox" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    轻松模式：小学生常用词库（核心 500 词发牌 · 1613 词宽松校验） · 纯前端运行<br>
+    适合部署到 Cloudflare Pages
+  </footer>
+</div>
+
+<script src="words.js"></script>
+<script src="accept-words.js"></script>
+<script src="game-core.js"></script>
+<script>
+(function(){
+  'use strict';
+  var G = window.GameCore;
+  var coreDict = new Set(WORDS);
+  var acceptDict = new Set(ACCEPT_WORDS);
+  var BOARD = 13;
+  var mode = 'casual';           // casual | challenge
+  var goal = 5;                  // 轻松模式目标词数
+  var challengeCount = 9;        // 挑战模式词数
+
+  var grid, rack, selected, cursor, solution, lastResult;
+
+  var elBoard = document.getElementById('board');
+  var elRack = document.getElementById('rack');
+  var elMsg = document.getElementById('msg');
+  var elHint = document.getElementById('hintBox');
+
+  function buildBoard(){
+    elBoard.innerHTML = '';
+    elBoard.style.gridTemplateColumns = 'repeat(' + BOARD + ', 32px)';
+    for (var r = 0; r < BOARD; r++){
+      for (var c = 0; c < BOARD; c++){
+        var d = document.createElement('div');
+        d.className = 'cell';
+        (function(rr, cc, node){ node.addEventListener('click', function(){ onCell(rr, cc); }); })(r, c, d);
+        elBoard.appendChild(d);
+      }
+    }
+  }
+  function cellNode(r, c){ return elBoard.children[r * BOARD + c]; }
+  function emptyGrid(){ return Array.from({length: BOARD}, function(){ return Array(BOARD).fill(null); }); }
+
+  function placedCount(){
+    var n = 0;
+    for (var r = 0; r < BOARD; r++) for (var c = 0; c < BOARD; c++) if (grid[r][c]) n++;
+    return n;
+  }
+
+  function renderBoard(){
+    for (var r = 0; r < BOARD; r++){
+      for (var c = 0; c < BOARD; c++){
+        var node = cellNode(r, c);
+        var ch = grid[r][c];
+        node.textContent = ch ? ch.toUpperCase() : '';
+        node.className = 'cell' + (ch ? ' filled' : '');
+        if (lastResult && lastResult.cells && lastResult.cells[r + ',' + c]){
+          node.className = 'cell ' + lastResult.cells[r + ',' + c];
+        }
+        if (cursor && cursor.r === r && cursor.c === c) node.classList.add('cursor');
+      }
+    }
+    // 挑战模式：无效词标红
+    if (mode === 'challenge' && lastResult && lastResult.invalidWords && lastResult.invalidWords.length){
+      G.extractWords(grid).filter(function(run){
+        return lastResult.invalidWords.indexOf(run.word) !== -1;
+      }).forEach(function(run){
+        run.cells.forEach(function(cell){ cellNode(cell.r, cell.c).classList.add('hl-invalid'); });
+      });
+    }
+  }
+
+  function renderRack(){
+    elRack.innerHTML = '';
+    if (!rack.length){
+      var e = document.createElement('div');
+      e.className = 'rack-empty';
+      e.textContent = (mode === 'casual' && lastResult && lastResult.ok) ? '过关啦！' : '字母已全部用完';
+      elRack.appendChild(e);
+    }
+    rack.forEach(function(t, i){
+      var d = document.createElement('div');
+      d.className = 'tile' + (selected === i ? ' sel' : '');
+      d.textContent = t.toUpperCase();
+      var p = document.createElement('span');
+      p.className = 'pt'; p.textContent = G.LETTER_POINTS[t] || 1;
+      d.appendChild(p);
+      (function(idx){ d.addEventListener('click', function(){ onTile(idx); }); })(i);
+      elRack.appendChild(d);
+    });
+  }
+
+  function renderStats(){
+    var placed = placedCount();
+    if (mode === 'casual' && lastResult){
+      var good = lastResult.validWords.length;
+      document.getElementById('statProgress').textContent = good + ' / ' + goal;
+      document.getElementById('progressBar').style.width = Math.min(100, good / goal * 100) + '%';
+      document.getElementById('statScore').textContent = lastResult.score;
+    } else {
+      document.getElementById('statProgress').textContent = '—';
+      document.getElementById('progressBar').style.width = '0%';
+      document.getElementById('statScore').textContent = lastResult ? lastResult.score : 0;
+    }
+    document.getElementById('statLeft').textContent = rack.length;
+    document.getElementById('statPlaced').textContent = placed;
+    document.getElementById('rackCount').textContent = rack.length;
+  }
+
+  function renderAll(){ renderBoard(); renderRack(); renderStats(); }
+  function setMsg(text, kind){ elMsg.textContent = text; elMsg.className = 'msg ' + (kind || 'info'); }
+  function setMsgHTML(html, kind){ elMsg.innerHTML = html; elMsg.className = 'msg ' + (kind || 'info'); }
+
+  // 每次摆放后：轻松模式实时校验并反馈
+  function refresh(){
+    if (mode === 'casual'){
+      lastResult = G.validateCasual(grid, acceptDict, goal);
+      if (lastResult.ok){
+        var chips = lastResult.validWords.map(function(w){ return '<span class="word-chip">' + w.toUpperCase() + '</span>'; }).join('');
+        setMsgHTML('🎉 过关！拼出 ' + lastResult.validWords.length + ' 个词，得分 <b>' + lastResult.score + '</b>。<div class="words">' + chips + '</div>' +
+          (lastResult.unknownWords.length ? '<div style="margin-top:6px;font-size:12px;opacity:.8">未收录的串：' + lastResult.unknownWords.map(function(w){return w.toUpperCase();}).join('、') + '（不算错）</div>' : ''), 'ok');
+      } else if (lastResult.validWords.length > 0){
+        var chips2 = lastResult.validWords.map(function(w){ return '<span class="word-chip">' + w.toUpperCase() + '</span>'; }).join('');
+        setMsgHTML('已拼出 ' + lastResult.validWords.length + ' / ' + goal + ' 个词，继续加油！<div class="words">' + chips2 + '</div>' +
+          (lastResult.unknownWords.length ? '<div style="margin-top:6px;font-size:12px;color:var(--warn)">黄色串暂未收录：' + lastResult.unknownWords.map(function(w){return w.toUpperCase();}).join('、') + '</div>' : ''), 'info');
+      } else {
+        setMsg('开始拼词吧！放下 3 个以上字母组成单词，绿色的就是拼对的。', 'info');
+      }
+    }
+    renderAll();
+  }
+
+  function onTile(i){ selected = (selected === i) ? null : i; renderRack(); }
+
+  function onCell(r, c){
+    cursor = { r: r, c: c };
+    if (grid[r][c]){
+      rack.push(grid[r][c]);
+      grid[r][c] = null;
+      if (mode === 'challenge') lastResult = null;
+      refresh();
+    } else if (selected !== null && selected < rack.length){
+      grid[r][c] = rack[selected];
+      rack.splice(selected, 1);
+      selected = null;
+      if (mode === 'challenge') lastResult = null;
+      refresh();
+    }
+  }
+
+  function newGame(){
+    if (mode === 'casual'){
+      var d = G.dealCasual(goal, WORDS, Math.random, coreDict);
+      rack = d.tiles.slice();
+      solution = null;
+    } else {
+      var dc = G.deal(challengeCount, WORDS, Math.random, coreDict, BOARD);
+      rack = dc.tiles.slice();
+      solution = dc.solution;
+    }
+    grid = emptyGrid();
+    selected = null; cursor = null; lastResult = null;
+    elHint.innerHTML = '';
+    if (mode === 'casual') refresh();
+    else { renderAll(); setMsg('已发出 ' + rack.length + ' 张字母牌，拼成交叉词网并用完全部字母后点「检查拼词」。', 'info'); }
+  }
+
+  function checkChallenge(){
+    var result = G.validate(grid, coreDict, { requireConnected: true, requireAllTiles: true, rackLeft: rack.length });
+    lastResult = result;
+    renderBoard(); renderStats();
+    if (result.ok){
+      var chips = result.validWords.map(function(w){ return '<span class="word-chip">' + w.toUpperCase() + '</span>'; }).join('');
+      setMsgHTML('太棒了！全部字母用完，拼出 ' + result.validWords.length + ' 个词，得分 <b>' + result.score + '</b>。<div class="words">' + chips + '</div>', 'ok');
+    } else {
+      setMsg(result.errors.map(function(e){ return e.text; }).join('；'), 'err');
+    }
+  }
+
+  function clearBoard(){
+    for (var r = 0; r < BOARD; r++) for (var c = 0; c < BOARD; c++){
+      if (grid[r][c]){ rack.push(grid[r][c]); grid[r][c] = null; }
+    }
+    selected = null;
+    if (mode === 'casual') refresh();
+    else { lastResult = null; renderAll(); setMsg('网格已清空。', 'info'); }
+  }
+
+  function doHint(){
+    if (!rack.length){ setMsg('没有剩余字母可供提示。', 'info'); return; }
+    // 优先用核心 500 词（小学生常用），不够再用宽松库补
+    var list = G.hints(rack, WORDS, 6);
+    if (list.length < 3){
+      var extra = G.hints(rack, ACCEPT_WORDS, 8).filter(function(w){ return list.indexOf(w) < 0 && w.length <= 5; });
+      list = list.concat(extra).slice(0, 6);
+    }
+    if (!list.length){ setMsg('用剩余字母在词库里找不到可行的词，试试回收几个字母重新组合。', 'warn'); return; }
+    elHint.innerHTML = '可以拼：<b>' + list.map(function(w){ return w.toUpperCase(); }).join(' &middot; ') + '</b>';
+    setMsg('提示已生成，见下方。', 'info');
+  }
+
+  function doAuto(){
+    if (mode !== 'casual') return;
+    if (!rack.length){ setMsg('字母架空了，点「重新开始」。', 'info'); return; }
+    var s = G.suggestPlacement(rack, ACCEPT_WORDS, acceptDict);
+    if (!s){ setMsg('剩余字母拼不出词库里的词，点「重新开始」换一手。', 'warn'); return; }
+    // 隔行放置：每个词占一行且前后留空行，避免上下词纵向粘成生词串
+    var r = -1, c = 0;
+    for (var rr = 0; rr < BOARD; rr += 2){
+      var rowEmpty = true;
+      for (var q = 0; q < BOARD; q++) if (grid[rr][q]) { rowEmpty = false; break; }
+      if (rowEmpty){ r = rr; break; }
+    }
+    if (r === -1){ // 偶数行用完，再找奇数行
+      for (var ro = 1; ro < BOARD; ro += 2){
+        var empty2 = true;
+        for (var q2 = 0; q2 < BOARD; q2++) if (grid[ro][q2]) { empty2 = false; break; }
+        if (empty2){ r = ro; break; }
+      }
+    }
+    if (r === -1){ setMsg('网格的空行用完了，点「清空网格」再摆。', 'warn'); return; }
+    c = 0;
+    for (var k2 = 0; k2 < s.word.length; k2++){
+      var ch = s.word[k2];
+      var idx = rack.indexOf(ch);
+      if (idx === -1) continue;
+      grid[r][c + k2] = ch;
+      rack.splice(idx, 1);
+    }
+    setMsg('帮你摆了 ' + s.word.toUpperCase() + '，你可以改字母或继续拼。', 'info');
+    refresh();
+  }
+
+  function showSolution(){
+    if (!solution){ setMsg('请先发牌。', 'info'); return; }
+    rack = [];
+    grid = solution.map(function(row){ return row.slice(); });
+    selected = null; cursor = null;
+    lastResult = G.validate(grid, coreDict, { requireConnected: true, requireAllTiles: true, rackLeft: 0 });
+    renderAll();
+    if (lastResult.ok){
+      var chips = lastResult.validWords.map(function(w){ return '<span class="word-chip">' + w.toUpperCase() + '</span>'; }).join('');
+      setMsgHTML('参考解已铺好（得分 <b>' + lastResult.score + '</b>）：<div class="words">' + chips + '</div>', 'ok');
+    } else setMsg('参考解已铺好。', 'info');
+  }
+
+  function switchMode(m){
+    mode = m;
+    document.getElementById('modeCasual').classList.toggle('active', m === 'casual');
+    document.getElementById('modeChallenge').classList.toggle('active', m === 'challenge');
+    document.getElementById('goalRow').classList.toggle('hidden', m !== 'casual');
+    document.getElementById('tipsCasual').classList.toggle('hidden', m !== 'casual');
+    document.getElementById('tipsChallenge').classList.toggle('hidden', m !== 'challenge');
+    document.getElementById('btnSolve').classList.toggle('hidden', m !== 'challenge');
+    document.getElementById('btnCheck').classList.toggle('hidden', m !== 'challenge');
+    document.getElementById('btnAuto').classList.toggle('hidden', m !== 'casual');
+    document.getElementById('btnHint').textContent = m === 'casual' ? '提示一个词' : '提示';
+    document.getElementById('lead').textContent = m === 'casual'
+      ? '用手里的字母随便拼英文单词，拼够目标数量就过关——不用交叉、不用用完，轻松玩。'
+      : '经典规则：字母全部用完，拼成相互交叉的词网，词都在核心 500 词库内。';
+    newGame();
+  }
+
+  document.getElementById('modeCasual').addEventListener('click', function(){ switchMode('casual'); });
+  document.getElementById('modeChallenge').addEventListener('click', function(){ switchMode('challenge'); });
+  Array.prototype.forEach.call(document.querySelectorAll('.goal-row button'), function(b){
+    b.addEventListener('click', function(){
+      goal = parseInt(b.dataset.goal, 10);
+      Array.prototype.forEach.call(document.querySelectorAll('.goal-row button'), function(x){ x.classList.remove('active'); });
+      b.classList.add('active');
+      newGame();
+    });
+  });
+  document.getElementById('btnNew').addEventListener('click', newGame);
+  document.getElementById('btnCheck').addEventListener('click', checkChallenge);
+  document.getElementById('btnHint').addEventListener('click', doHint);
+  document.getElementById('btnAuto').addEventListener('click', doAuto);
+  document.getElementById('btnClear').addEventListener('click', clearBoard);
+  document.getElementById('btnSolve').addEventListener('click', showSolution);
+
+  document.addEventListener('keydown', function(e){
+    if (!grid) return;
+    var key = e.key;
+    if (/^[a-zA-Z]$/.test(key)){
+      var ch = key.toLowerCase();
+      var idx = rack.indexOf(ch);
+      if (idx === -1){ setMsg('字母架里没有 ' + ch.toUpperCase(), 'err'); return; }
+      if (!cursor) cursor = { r: 0, c: 0 };
+      if (grid[cursor.r][cursor.c]){
+        var cc = cursor.c;
+        while (cc < BOARD && grid[cursor.r][cc]) cc++;
+        if (cc >= BOARD) return;
+        cursor.c = cc;
+      }
+      grid[cursor.r][cursor.c] = ch;
+      rack.splice(idx, 1);
+      if (mode === 'challenge') lastResult = null;
+      refresh();
+      if (cursor.c < BOARD - 1) cursor.c++;
+      renderBoard();
+    } else if (key === 'Backspace' && cursor){
+      if (grid[cursor.r][cursor.c]){
+        rack.push(grid[cursor.r][cursor.c]);
+        grid[cursor.r][cursor.c] = null;
+        if (mode === 'challenge') lastResult = null;
+        refresh();
+      }
+    } else if (key === 'ArrowRight' && cursor){ cursor.c = Math.min(BOARD-1, cursor.c+1); renderBoard(); }
+    else if (key === 'ArrowLeft' && cursor){ cursor.c = Math.max(0, cursor.c-1); renderBoard(); }
+    else if (key === 'ArrowUp' && cursor){ cursor.r = Math.max(0, cursor.r-1); renderBoard(); }
+    else if (key === 'ArrowDown' && cursor){ cursor.r = Math.min(BOARD-1, cursor.r+1); renderBoard(); }
+  });
+
+  buildBoard();
+  grid = emptyGrid(); rack = []; selected = null; cursor = null; solution = null; lastResult = null;
+  renderAll();
+  newGame();
+})();
+</script>
+</body>
+</html>
